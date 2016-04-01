@@ -53,3 +53,79 @@ function summarize(text) {
   });
   return summ.join(". ") + ".";
 }
+
+var articles = [];
+
+document.addEventListener('DOMContentLoaded', function() {
+
+  /* trash button */
+  document.getElementById('trash').addEventListener('click', function() {
+    var title = document.getElementById('title').innerText;
+    for (var i = 0; i < articles.length; i++) {
+      if (articles[i].title == title) {
+        articles.splice(i, 1);
+      }
+    }
+    chrome.storage.local.set({'sumitup': articles}, renderArticles);
+  });
+
+  /* renderArticles from global var articles */
+  function renderArticles() {
+    var list = document.getElementById("list");
+    while (list.firstChild) {
+      list.removeChild(list.firstChild);
+    }
+    if (articles.length == 0) {
+      articles.push({
+        title: "No Summaries",
+        summary: "Relaunch this extension on a news article to get a summary!"
+      });
+    }
+    for (var i = 0; i < articles.length; i++) {
+      var a = document.createElement('a');
+      a.href = "#";
+      a.setAttribute('data-title', articles[i].title);
+      a.setAttribute('data-summary', articles[i].summary);
+      a.onclick = function() {
+        var as = document.body.getElementsByTagName("a");
+        for (var i = 0; i < as.length; i++) {
+          as[i].classList.remove('active');
+        }
+        this.classList.add('active');
+        document.getElementById('content').innerText = this.getAttribute('data-summary');
+        document.getElementById('title').innerText = this.getAttribute('data-title');
+      };
+      a.innerText = articles[i].title;
+      if (i == articles.length - 1) {
+        a.classList.add('active');
+        document.getElementById('title').innerText = articles[i].title;
+        document.getElementById('content').innerText = articles[i].summary;
+      }
+      document.getElementById('list').appendChild(a);
+    }
+  }
+
+  chrome.tabs.getSelected(null, function(tab) {
+    chrome.tabs.sendRequest(tab.id, {action: "getDOM"}, function(response) {
+      chrome.storage.local.get({'sumitup': []}, function(doc) {
+
+        articles = doc.sumitup;
+        if (response) {
+          var updated = false;
+          for (var i = 0; i < articles.length; i++) {
+            if (articles[i].title == response.title) {
+              articles[i].summary = summarize(response.text);
+              updated = true;
+            }
+          }
+          if (!response.title) response.title = "No Title";
+          if (!updated) articles.push({title: response.title, summary: summarize(response.text)});
+          chrome.storage.local.set({'sumitup': articles}, renderArticles);
+        }
+        else renderArticles();
+
+      });
+    });
+  });
+
+}, false);
